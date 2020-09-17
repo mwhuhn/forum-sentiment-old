@@ -11,5 +11,6 @@ This project scrapes Youbemom forum posts into a database and performs textual a
 &nbsp;&nbsp;&nbsp;&nbsp;└─2-Sentiment_Analysis.ipynb <br />
 &nbsp;&nbsp;&nbsp;&nbsp;└─3-Lemmatize_Text.ipynb <br />
 &nbsp;&nbsp;&nbsp;&nbsp;└─4-Generage_Topic_Models.ipynb <br />
+&nbsp;&nbsp;&nbsp;&nbsp;└─5-Explore_Topic_Models.ipynb <br />
 └─clean_data <br />
 └─plots <br />
