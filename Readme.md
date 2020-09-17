@@ -1,6 +1,6 @@
-# Forum Sentiment Analysis Project
+# Forum Textual Analysis Project
 
-This project scrapes Youbemom forum posts into a database and performs sentiment analysis comparing before and during the COVID-19 pandemic.
+This project scrapes Youbemom forum posts into a database and performs textual analysis comparing before and during the COVID-19 pandemic.
 
 ## Directory Structure
 . <br />
@@ -9,3 +9,7 @@ This project scrapes Youbemom forum posts into a database and performs sentiment
 └─scripts <br />
 &nbsp;&nbsp;&nbsp;&nbsp;├─1-Scrape_Forum.ipynb <br />
 &nbsp;&nbsp;&nbsp;&nbsp;└─2-Sentiment_Analysis.ipynb <br />
+&nbsp;&nbsp;&nbsp;&nbsp;└─3-Lemmatize_Text.ipynb <br />
+&nbsp;&nbsp;&nbsp;&nbsp;└─4-Generage_Topic_Models.ipynb <br />
+└─clean_data <br />
+└─plots <br />
