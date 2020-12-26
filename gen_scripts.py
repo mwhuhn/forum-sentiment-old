@@ -1,6 +1,6 @@
-earliest = 9526938 # fix to start 2018/01/01: 9454476
-latest = 10991517
-groups = 30
+earliest = 6987340 # fix to start 2014/01/01: 6987340
+latest = 9526938
+groups = 10
 size = round((latest-earliest)/groups)
 
 text = """
@@ -30,9 +30,6 @@ loop_link_threads(conn, path_db, earliest_link, last_link)
 conn.close()
 """
 
-with open("run_groups.sh", 'a') as b:
-    b.write("#!/bin/sh\n")
-
 for g in range(groups):
     first = earliest + (size * g)
     if g == groups - 1:
@@ -45,5 +42,3 @@ for g in range(groups):
         num = "{}".format(g + 1)
     with open("group_{}.py".format(num), 'w') as w:
         w.write(text.format(num, first, last))
-    with open("run_groups.sh", 'a') as b:
-        b.write("nohup krenew -t -- python3 group_{0}.py > output_{1}.txt &\n".format(num, num))
