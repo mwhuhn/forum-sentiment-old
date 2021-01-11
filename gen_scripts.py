@@ -1,5 +1,5 @@
-earliest = 6987340 # fix to start 2014/01/01: 6987340
-latest = 9526938
+earliest = 6987340 # start 2014/01/01: 6987340
+latest = 11043529 # first post in 2021/01/01: 11043529
 groups = 10
 size = round((latest-earliest)/groups)
 
