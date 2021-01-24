@@ -1,43 +1,8 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-# # Scrape Forum Data
 # Contains functions for scraping Youbemom forum posts
-# 
-# ## Data Sources
-# - Youbemom forum: https://www.youbemom.com/forum/special-needs
-# 
-# ## Changes
-# - 2020-08-11: Started project
-# - 2020-08-18: Updated forum crawl
-# - 2020-08-22: Updated database structure
-# - 2020-10-22: Added additional subforums
-# - 2020-10-24: Added deleted post column
-# - 2020-12-02: Added dne and family_id to threads
-# - 2020-12-09: Added function to loop missing from list
-# 
-# ## Database Structure
-# - threads
-#  - id: automatically assigned
-#  - family_id: family_id, should be same as id, but links to posts
-#  - url: url of top post
-#  - subforum: subforum name
-#  - dne: permalink does not exist
-# - posts
-#  - id: automatically assigned
-#  - family_id: thread.family_id, should be same as thread.id
-#  - message_id: the unique id of the message from the html
-#  - parent_id: id of post this post is responding to, 0 if top post
-#  - date_recorded: date the data is fetched
-#  - date_created: date the data was created
-#  - title: title of the post
-#  - body: body of the post
-#  - subforum: subforum name
-# 
-# ## TODO
-# - 
 
-# ## Imports
 
 import re
 import sqlite3
