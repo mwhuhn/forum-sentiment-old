@@ -1,4 +1,4 @@
-# 1.2.5 Identify Spam
+# 1.2.5 Clean_Data-Identify_Spam
 
 # Libraries ----
 
@@ -23,7 +23,7 @@ make_bool <- function(x) {
 coded <- samp %>%
   filter(!is.na(spam)) %>%
   select(
-    spam, message_id, text, text_clean, n_symbols, has_url, has_email, has_large_number, vashikaran:pills, enlarge:penis, male.enhancement:penis.size, supplement, astrologer, testosterone, visit.us.at, keto:visit.here
+    spam, message_id, text, text_clean, n_symbols, has_url, has_email, has_large_number, vashikaran:pills, enlarge:penis, male.enhancement:penis.size, supplement, astrologer, testosterone, visit.us.at, keto:visit.here, dom.topic:key.words
   ) %>%
   mutate(
     # spam = replace_na(spam, 0),
@@ -41,31 +41,21 @@ coded <- samp %>%
   mutate(across(has_url:visit.here, make_bool))
 
 noncoded <- samp %>%
-  filter(is.na(spam)) %>%
   select(
-    spam, message_id, text, text_clean, n_symbols, has_url, has_email, has_large_number, vashikaran:pills, enlarge:penis, male.enhancement:penis.size, supplement, astrologer, testosterone, visit.us.at, keto:visit.here
+    message_id, text, text_clean, n_symbols, has_url, has_cutoff_url, has_email, has_large_number, has_alpha, vashikaran:pills, enlarge:penis, male.enhancement:penis.size, supplement, astrologer, testosterone, Testo, visit.us.at:Http
   ) %>%
   mutate(
     # spam = replace_na(spam, 0),
-    is_spam = factor(ifelse(spam==1, "yes", "no"), levels = c("no", "yes")),
     n_char = nchar(text),
     is_long = n_char > 900,
     many_symbols = n_symbols > 10, 
-    problem.solution = grepl("problem solution", text, ignore.case = T),
-    amino.app = grepl("aminoapp", text, ignore.case = T),
+    problem.solution = greplproblem("problem solution", text, ignore.case = T),
     cbd.oil = grepl("cbd.oil", text, ignore.case = T),
     has_dd = grepl("\\bdd['s]*\\b", text_clean, ignore.case = T),
     has_dh = grepl("\\bdh['s]*\\b", text_clean, ignore.case = T),
     has_ds = grepl("\\bds['s]*\\b", text_clean, ignore.case = T)
   ) %>%
-  mutate(across(has_url:visit.here, make_bool))
-
-  # ) %>%
-  # select(
-  #   # is_spam, many_symbols, is_long, has_url, has_email, has_large_number, enlargement, supplement, streaming, stream, live, vs, watch, vashikaran
-  #   is_spam, many_symbols, is_long, has_url, has_email, has_large_number, enlargement, black.magic, male.enhancement, s3xual, love.spell, astrologer, supplement, aminoapp, xtreme, extreme, keto, streaming, stream, live, vs, watch, vashikaran, visit.us.at
-  # ) %>%
-  # mutate(across(has_url:vashikaran, make_bool))
+  mutate(across(has_url:Http, make_bool))
 
 
 # Explore ----
@@ -87,7 +77,6 @@ nonurls$problem.solution <- grepl("problem solution", nonurls$text, ignore.case 
 ## . Has Urls ----
 
 urls <- coded[!mask,]
-urls <- urls %>%
 
 ## Never spam
 # has_dd
@@ -106,7 +95,7 @@ urls <- urls %>%
 # has_url & cbd.oil
 # has_url & live & stream
 
-## TODO: Code examples, will probably need topic modelling
+## Not all but most are spam
 # has_url & is_long
 # has_url & watch & live & !stream # sports streams vs others
 # has_url & keto # long ones are spam
@@ -118,60 +107,45 @@ urls <- urls %>%
 # Code spam ----
 test <- noncoded %>%
   mutate(
-    probable_spam = (!has_url & vashikaran) |
-      (!has_url & has_large_number & is_long) |
+    probable_spam = (
+      (!has_url & vashikaran) |
+      (!has_url & has_large_number & n_char > 900) |
       (!has_url & has_large_number & many_symbols) |
       (!has_url & has_large_number & problem.solution) | 
       (has_url & vs & stream) |
-      (has_url & s.t.r.e.a.m) |
+      (has_url & s...t...r...e...a...m) |
       (has_url & has_large_number) |
       (has_url & visit.here) |
-      (has_url & amino.app) |
+      (has_url & visit.at) |
+      (has_url & aminoapp) |
       (has_url & male.enhancement) |
       (has_url & testosterone) |
       (has_url & visit.us.at) |
-      (has_url & cbd.oil)
+      (has_url & cbd.oil) |
+      (has_url & Http) |
+      (has_url & bracket_url) |
+      (has_url & keto & n_char > 320) |
+      (has_url & supplement & n_char > 320) |
+      (has_url & pills & n_char > 300)
+    ) & (
+      !has_dd & !has_dh & !has_ds # mentions of dd, dh, or ds are never spam (dear/darling daughter/husband/son)
+    )
   )
 table(test$probable_spam)
 
-test <- test %>%
-  mutate(
-    has_bracket_url = grepl("\\[url", text_clean, ignore.case = T),
-    has_Http = grepl("Http", text_clean, ignore.case = F)
-  )
 
-table(t=test, spam=noncoded$spam)
-
-
-# Create train and validation set ----
-
-# validation_data <- mc_cv(spam_train, prop = 0.9, times = 30)
-# validation_data
-
-# Train model
-
-# model_logit <- glm(is_spam ~ ., data = spam_train, family = "binomial")
-# summary(model_logit)
-# pred_p.logit <- predict(model_logit, spam_train, type = "response")
-# pred.logit <- ifelse(spam_train$pred_p > .5, 1, 0)
-# table(pred=pred.logit, true=spam_train$is_spam)
-
-
-rf_no_url <- coded %>%
-  filter(!has_url) %>%
-  select(is_spam, vashikaran, creme, has_large_number, many_symbols, is_long, problem.solution)
-
-set.seed(2352)
-train_test_split <- initial_split(rf_no_url, prop = 0.9)
-spam_train <- training(train_test_split)
-spam_test <- testing(train_test_split)
-
-model_rf <- randomForest(is_spam ~ ., data = spam_train, ntree = 10000, mtry = 3,importance = TRUE, keep.forest = TRUE)
-model_rf
-pred.rf <- predict(model_rf, spam_test, type = "response")
-table(pred=pred.rf, true=spam_test$is_spam)
-
-
-
-
-model2 <- randomForest(Condition ~ ., data = TrainSet, ntree = 4000, mtry = 3, importance = TRUE)
+# Try to model spam ---
+## NOTE: did not use this, it is not bad at picking out spam
+# rf_no_url <- coded %>%
+#   filter(!has_url) %>%
+#   select(is_spam, vashikaran, creme, has_large_number, many_symbols, is_long, problem.solution)
+# 
+# set.seed(2352)
+# train_test_split <- initial_split(rf_no_url, prop = 0.9)
+# spam_train <- training(train_test_split)
+# spam_test <- testing(train_test_split)
+# 
+# model_rf <- randomForest(is_spam ~ ., data = spam_train, ntree = 10000, mtry = 3,importance = TRUE, keep.forest = TRUE)
+# model_rf
+# pred.rf <- predict(model_rf, spam_test, type = "response")
+# table(pred=pred.rf, true=spam_test$is_spam)
