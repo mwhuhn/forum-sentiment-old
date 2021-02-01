@@ -28,18 +28,20 @@ sn_sql <- "
         p.message_id AS message_id,
         p.date_created AS date_created,
         p.parent_id AS parent_id,
-        s.neg_sen_all as neg_sen_all,
-        s.neu_sen_all as neu_sen_all,
-        s.pos_sen_all as pos_sen_all,
-        s.com_sen_all as com_sen_all,
-        s.neg_sen_no_url as neg_sen_no_url,
-        s.neu_sen_no_url as neu_sen_no_url,
-        s.pos_sen_no_url as pos_sen_no_url,
-        s.com_sen_no_url as com_sen_no_url
+        s.neg_sen_clean as neg_sen_clean,
+        s.neu_sen_clean as neu_sen_clean,
+        s.pos_sen_clean as pos_sen_clean,
+        s.com_sen_clean as com_sen_clean
     FROM posts AS p
     JOIN sentiment AS s
     ON p.message_id = s.message_id
     WHERE p.subforum = 'special-needs'
+      AND p.message_id IN (
+        SELECT message_id
+        FROM text
+        WHERE text_clean<>''
+          AND probable_spam=0
+      )
 "
 sn <- dbGetQuery(conn, sn_sql)
 
@@ -60,14 +62,10 @@ td_sql <- "
         p.message_id AS message_id,
         p.date_created AS date_created,
         p.parent_id AS parent_id,
-        s.neg_sen_all as neg_sen_all,
-        s.neu_sen_all as neu_sen_all,
-        s.pos_sen_all as pos_sen_all,
-        s.com_sen_all as com_sen_all,
-        s.neg_sen_no_url as neg_sen_no_url,
-        s.neu_sen_no_url as neu_sen_no_url,
-        s.pos_sen_no_url as pos_sen_no_url,
-        s.com_sen_no_url as com_sen_no_url
+        s.neg_sen_clean as neg_sen_clean,
+        s.neu_sen_clean as neu_sen_clean,
+        s.pos_sen_clean as pos_sen_clean,
+        s.com_sen_clean as com_sen_clean
     FROM posts AS p
     JOIN sentiment AS s
     ON p.message_id = s.message_id
@@ -85,11 +83,6 @@ days <- c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
 months <- c("January","February","March","April","May","June",
             "July","August","September","October","November","December")
 periods <- c("before","march","during")
-weeks <- map_chr(c(1,14,27,40), pad)
-wy_scale <- expand.grid(w=weeks, y=2014:2020) %>%
-  select(y, w) %>%
-  apply(1, paste, collapse="-")
-
 
 pad <- function(n) {
   if(is.character(n)) {
@@ -103,6 +96,11 @@ pad <- function(n) {
     return(as.character(t))
   }
 }
+
+weeks <- map_chr(c(1,14,27,40), pad)
+wy_scale <- expand.grid(w=weeks, y=2014:2020) %>%
+  select(y, w) %>%
+  apply(1, paste, collapse="-")
 
 clean_data <- function(df) {
   df <- df %>%
@@ -192,12 +190,12 @@ plot_freq_detrend(sn)
 
 plot_sen <- function(df) {
   df %>%
-    group_by(month_y) %>%
+    group_by(week_y) %>%
     summarise(
-      ave_sen = mean(com_sen_no_url),
+      ave_sen = mean(com_sen_clean),
       .groups = 'drop_last'
     ) %>%
-    ggplot(aes(x=month_y, y=ave_sen)) +
+    ggplot(aes(x=week_y, y=ave_sen)) +
     geom_point() +
     geom_line() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
@@ -210,7 +208,7 @@ plot_sen_smooth <- function(df) {
   df %>%
     group_by(month_y) %>%
     summarise(
-      ave_sen = mean(com_sen_no_url),
+      ave_sen = mean(com_sen_clean),
       .groups = 'drop_last'
     ) %>%
     ggplot(aes(x=month_y, y=ave_sen)) +
@@ -243,15 +241,33 @@ plot_sen_detrend <- function(df) {
     scale_x_continuous(breaks=1:12)
 }
 
+sn %>%
+  filter(
+    date_created < ymd(20200501) & date_created >= ymd(20200101)
+  ) %>%
+  mutate(
+    period = case_when(
+      date_created < ymd(20200301) ~ "before",
+      date_created >= ymd(20200301) ~ "during",
+    )
+  ) %>%
+  group_by(period) %>%
+  summarise(
+    ave_sen = mean(com_sen_clean),
+    .groups = 'drop_last'
+  ) %>%
+  ggplot(aes(x=period, y=ave_sen)) +
+  geom_col()
+
 plot_sen_detrend(sn)
 
 #  Diff in diff
 
-sn.trend <- lm(com_sen_no_url ~ day_ymd, data=sn)
+sn.trend <- lm(com_sen_clean ~ day_ymd, data=sn)
 summary(sn.trend)
 # Sentiment has a negative trend on the special-needs board
 
-td.trend <- lm(com_sen_no_url ~ day_ymd, data=td)
+td.trend <- lm(com_sen_clean ~ day_ymd, data=td)
 summary(td.trend)
 
 sn$forum <- 1
@@ -267,24 +283,29 @@ did <- did %>%
 did %>%
   group_by(month_y, forum) %>%
   summarise(
-    ave_sen = mean(com_sen_no_url),
+    ave_sen = mean(com_sen_clean),
     .groups = 'drop_last'
   ) %>%
   ggplot(aes(x=month_y, y=ave_sen, group=forum, color=factor(forum))) +
   geom_point() +
   geom_line() +
+  stat_smooth(method=lm) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   scale_color_discrete("Subforum", labels=c("Toddler", "Special\nNeeds")) +
   labs(title="Sentiment Trend",
        x="",
        y="Average Monthly\nCompound Sentiemnt",
-       caption="Sentiment calcualted from text with no urls.")
+       caption="Sentiment calcualted from text with no urls.") +
+  theme_classic() +
+  theme(
+    text = element_text(family = "montserrat", size=20)
+  )
 ggsave(paste0(path_parent,"/plots/ave_montly_sen_by_forum.png"),
        width=8,
        height=5,
        units="in")
 
-did1 <- lm(com_sen_no_url ~ forum * time + factor(week_n), data = did)
+did1 <- lm(com_sen_clean ~ forum * time + factor(week_n), data = did)
 summary(did1)
 
 did.pred1 <- expand.grid(year_n=2014:2020,
@@ -306,7 +327,45 @@ did.pred2 <- expand.grid(forum=0:1,
                          time=0:1)
 did.pred2$year_n <- c(2019, 2019, 2020, 2020)
 
-  
+did.bd <- did %>%
+  filter(
+    date_created < ymd(20200501) & date_created >= ymd(20200101)
+  ) %>%
+  mutate(
+    period = case_when(
+      time == 1 ~ "During",
+      time == 0 ~ "Before"
+    ),
+    forum_n = case_when(
+      forum == 1 ~ "Special-Needs",
+      forum == 0 ~ "Toddler"
+    )
+  )
+did.bd %>%
+  group_by(period, forum_n) %>%
+  summarise(
+    ave_sen = mean(com_sen_clean),
+    .groups = 'drop_last'
+  ) %>%
+  ggplot(aes(x=forum_n, y=ave_sen, group=period, fill=period)) +
+  geom_col(position = "dodge", color="black") +
+  labs(
+    title="Sentiment Jan - April 2020",
+    x="Forum",
+    y="Average Compound Sentiment"
+  ) +
+  theme_classic() +
+  theme(
+    text = element_text(family = "montserrat", size=20)
+  )
+
+ggsave(paste0(path_parent,"/plots/before-during_sentiment.png"),
+       width=8,
+       height=5,
+       units="in")
+
+t.test(did.bd$com_sen_clean[did.bd$forum_n=="Special-Needs"]~did.bd$period[did.bd$forum_n=="Special-Needs"])
+t.test(did.bd$com_sen_clean[did.bd$forum_n=="Toddler"]~did.bd$period[did.bd$forum_n=="Toddler"])
 # interaction is significant p < 0.01
 # being sn makes it more positive
 # being during pandemic makes it more negative
@@ -319,28 +378,36 @@ forum_labels <- c("Toddler", "Special Needs")
 names(forum_labels) <- c("0", "1")
 # TODO: normalize data between sn and td?
 did %>%
-  group_by(week_n, year, forum) %>%
+  group_by(week_n, year_n, forum) %>%
   summarise(
-    ave_sen = mean(com_sen_no_url),
+    ave_sen = mean(com_sen_clean),
     .groups = 'drop_last'
   ) %>%
   filter(
-    year < 2021
+    year_n < 2021
   ) %>%
   mutate(
-    color = ifelse(year == 2020, 1, 0)
+    color = ifelse(year_n == 2020, 1, 0)
   ) %>%
-  arrange(year, week_n) %>%
-  ggplot(aes(x=week_n, y=ave_sen, group=as.factor(year), color=as.factor(color))) +
+  arrange(year_n, week_n) %>%
+  ggplot(aes(x=week_n, y=ave_sen, group=as.factor(year_n), color=as.factor(color))) +
   geom_rect(xmin = 9.86, xmax=14.29, ymin=-Inf, ymax=Inf, alpha=.2, fill="grey90", inherit.aes = F) +
   geom_point() +
   geom_line() +
   facet_wrap(~forum, labeller=labeller(forum=forum_labels)) +
-  scale_color_manual("Year", values=c("grey60", "firebrick4"), breaks=c(0, 1), labels=c("2014-2019", "2020")) +
+  scale_color_manual("Year", values=c("grey60", "firebrick2"), breaks=c(0, 1), labels=c("2014-2019", "2020")) +
   theme_classic() +
   labs(title="Average Weekly Sentiment by Year",
        x="Week",
-       y="Average Compound Sentiment")
+       y="Average Compound Sentiment") +
+  theme(
+    text = element_text(family = "montserrat", size=20)
+  )
+  
+ggsave(paste0(path_parent,"/plots/ave_weekly_sen_by_year.png"),
+       width=8,
+       height=5,
+       units="in")
 
 # Time Series ----
 
@@ -354,7 +421,7 @@ to_ts <- function(df) {
     ) %>%
     group_by(d) %>%
     summarise(
-      ave_sen = mean(com_sen_no_url),
+      ave_sen = mean(com_sen_clean),
       .groups = 'drop_last'
     ) %>%
     arrange(d) %>%
