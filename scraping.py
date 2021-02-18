@@ -33,7 +33,7 @@ def create_connection(db_file):
 		print(err)
 	return conn
 
-def requests_retry_session(retries=5, backoff_factor=.1, session=None):
+def requests_retry_session(retries=10, backoff_factor=.1, session=None):
 	""" retry the request, backing off with longer rest each time
 	:param retries: number of retries
 	:param backoff_factor: each retry is longer by {backoff factor} * (2 ** ({number of total retries} - 1))
@@ -58,8 +58,9 @@ def get_soup(next_url):
 	:return soup: soup of url html
 	:note: uses html5lib and not html because missing html returns errors
 	"""
+	headers = {'User-Agent':'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:85.0) Gecko/20100101 Firefox/85.0'}
 	try:
-		res_next = requests_retry_session().get(next_url)
+		res_next = requests_retry_session().get(next_url, headers=headers)
 	except:
 		return False
 	soup = BeautifulSoup(res_next.content, "html5lib")

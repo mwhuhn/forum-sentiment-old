@@ -1,14 +1,10 @@
-# 2.1 Sentiment-Seasonality
+# 2.1.0 Sentiment-Create_Dataset_Youbemom
 
 # Libraries ----
 
 library(tidyverse)
 library(RSQLite)
 library(DBI)
-library(forecast)
-library(lubridate)
-library(zoo)
-library(tseries)
 
 # Path ----
 
@@ -16,14 +12,12 @@ path_parent <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 
 # Load files ----
 
-# sn <- read.csv(paste0(path_parent,"/clean_data/sn_sentiment.csv"))
-# td <- read.csv(paste0(path_parent,"/clean_data/td_sentiment.csv"))
 fn <- paste0(path_parent, "/database/youbemom-merged.db")
 conn <- dbConnect(SQLite(), fn)
 
-## . Special Needs ----
+## . SQL for selecting data ----
 
-sn_sql <- "
+select_sql <- "
     SELECT
         p.message_id AS message_id,
         p.date_created AS date_created,
@@ -35,7 +29,7 @@ sn_sql <- "
     FROM posts AS p
     JOIN sentiment AS s
     ON p.message_id = s.message_id
-    WHERE p.subforum = 'special-needs'
+    WHERE p.subforum = '%s'
       AND p.message_id IN (
         SELECT message_id
         FROM text
@@ -43,7 +37,36 @@ sn_sql <- "
           AND probable_spam=0
       )
 "
+
+## . Special needs ----
+
+sn_sql <- sprintf(select_sql, "special-needs")
 sn <- dbGetQuery(conn, sn_sql)
+
+## . Tweens/teens ----
+
+tt_sql <- sprintf(select_sql, "tween-teen")
+tt <- dbGetQuery(conn, tt_sql)
+
+## . Elementary ----
+
+el_sql <- sprintf(select_sql, "elementary")
+el <- dbGetQuery(conn, el_sql)
+
+## . Preschool ----
+
+pr_sql <- sprintf(select_sql, "preschool")
+pr <- dbGetQuery(conn, pr_sql)
+
+## . Newborn ----
+
+nb_sql <- sprintf(select_sql, "newborn")
+nb <- dbGetQuery(conn, nb_sql)
+
+## . NYC ----
+
+nyc_sql <- sprintf(select_sql, "new-york-city")
+nyc <- dbGetQuery(conn, nyc_sql)
 
 ## . Toddler ----
 
@@ -54,7 +77,7 @@ td_ids_sql <- " SELECT family_id FROM threads WHERE subforum='toddler' "
 td_ids <- dbGetQuery(conn, td_ids_sql)
 set.seed(291)
 per <- 0.1
-td_ids_sample <- slice_sample(td_ids, prop = .1)
+td_ids_sample <- slice_sample(td_ids, prop = per)
 dbCreateTable(conn, "temp", td_ids_sample, temporary = T)
 dbWriteTable(conn, "temp", td_ids_sample, overwrite=T)
 td_sql <- "
@@ -73,9 +96,27 @@ td_sql <- "
 "
 td <- dbGetQuery(conn, td_sql)
 
-## . Disconnect and remove extra ----
+## . Disconnect and clean env ----
+
 dbDisconnect(conn)
-rm(list=c("conn", "td_ids", "td_ids_sample", "per", "sn_sql", "td_ids_sql", "td_sql"))
+rm(list=c("conn", "td_ids", "td_ids_sample", "per"))
+rm(list=ls(pattern="_sql"))
+
+## . Nest data ----
+
+sen <- tibble(
+  subforum = c("el", "nb", "nyc", "pr", "sn", "td", "tt"),
+  data = list(el, nb, nyc, pr, sn, td, tt)
+)
+
+## . Write data to file ----
+out <- paste0(path_parent, "/clean_data/sentiment.rds")
+write_rds(sen, out)
+
+# sen <- sen %>%
+#   mutate(model = map(data, function(df) lm(com_sen_clean ~ neg_sen_clean, data = df)))
+# sen <- sen %>%
+#   mutate(pred = map(model, predict))
 
 # Clean data ----
 
