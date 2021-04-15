@@ -39,22 +39,28 @@ def set_up_posts_db(conn):
 		CREATE TABLE IF NOT EXISTS posts(
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
 			thread_id INTEGER,
+			post_count INTEGER,
 			post_id TEXT,
-			post_count TEXT,
 			user_url TEXT,
 			date_created TEXT,
 			date_recorded TEXT,
-			body TEXT
+			body TEXT,
+			version INTEGER
 		);
 		CREATE TABLE IF NOT EXISTS quotes(
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+			thread_id TEXT,
+			post_count INTEGER,
 			quoting_id TEXT,
 			quoted_id TEXT,
 			quoted_user TEXT,
-			quoted_text TEXT
+			quoted_text TEXT,
+			citation_n INTEGER
 		);
 		CREATE TABLE IF NOT EXISTS links(
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+			thread_id TEXT,
+			post_count INTEGER,
 			post_id TEXT,
 			link_count INTEGER,
 			link_text TEXT,
@@ -95,22 +101,28 @@ def set_up_merged_db(conn):
 		CREATE TABLE IF NOT EXISTS posts(
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
 			thread_id INTEGER,
+			post_count INTEGER,
 			post_id TEXT,
-			post_count TEXT,
 			user_url TEXT,
 			date_created TEXT,
 			date_recorded TEXT,
-			body TEXT
+			body TEXT,
+			version INTEGER
 		);
 		CREATE TABLE IF NOT EXISTS quotes(
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+			thread_id TEXT,
+			post_count INTEGER,
 			quoting_id TEXT,
 			quoted_id TEXT,
 			quoted_user TEXT,
-			quoted_text TEXT
+			quoted_text TEXT,
+			citation_n INTEGER
 		);
 		CREATE TABLE IF NOT EXISTS links(
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+			thread_id TEXT,
+			post_count INTEGER,
 			post_id TEXT,
 			link_count INTEGER,
 			link_text TEXT,
@@ -118,27 +130,29 @@ def set_up_merged_db(conn):
 		);
 	''')
 
-def write_citation(cur, quoting_id, quoted_id, quoted_user, quoted_text):
+def write_citation(cur, thread_id, post_count, quoting_id, quoted_id, quoted_user, quoted_text, citation_n):
 	""" writes citation ids to the quotes table,
 		links quoted posts to the quoting posts
+	:param thread_id: id of thread, linked to threads table
+	:param post_count: count of post in thread
 	:param quoting_id: id of post quoting another post
 	:param quoted_id: id of post being quoted
 	:param quoted_user: user being quoted
 	:param quoted_text: text of quote
 	:return: nothing
 	"""
-	parsed = (quoting_id, quoted_id, quoted_user, quoted_text)
+	parsed = (thread_id, post_count, quoting_id, quoted_id, quoted_user, quoted_text, citation_n)
 	sql = '''
-		INSERT INTO quotes(quoting_id, quoted_id, quoted_user, quoted_text)
-		VALUES(?,?,?,?)
+		INSERT INTO quotes(thread_id, post_count, quoting_id, quoted_id, quoted_user, quoted_text, citation_n)
+		VALUES(?,?,?,?,?,?,?)
 	'''
 	cur.execute(sql, parsed)
 
-def write_post(cur, thread_id, post_id, post_count, user_url, date_created, body):
+def write_post(cur, thread_id, post_count, post_id, user_url, date_created, body, version):
 	""" writes post information to posts table
 	:param thread_id: id of thread, linked to threads table
-	:param post_id: id scraped from post, linked to quotes table
 	:param post_count: count of post in thread
+	:param post_id: id scraped from post, linked to quotes table
 	:param user_url: user url, linked to users table
 	:param date_created: date post was created
 	:param date_recorded: date post was recorded
@@ -146,10 +160,10 @@ def write_post(cur, thread_id, post_id, post_count, user_url, date_created, body
 	:return: nothing
 	"""
 	date_recorded = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	parsed = (thread_id, post_id, post_count, user_url, date_created, date_recorded, body)
+	parsed = (thread_id, post_count, post_id, user_url, date_created, date_recorded, body, version)
 	sql = '''
-		INSERT INTO posts(thread_id, post_id, post_count, user_url, date_created, date_recorded, body)
-		VALUES(?,?,?,?,?,?,?)
+		INSERT INTO posts(thread_id, post_count, post_id, user_url, date_created, date_recorded, body, version)
+		VALUES(?,?,?,?,?,?,?,?)
 	'''
 	cur.execute(sql, parsed)
 
@@ -169,18 +183,20 @@ def write_user(cur, name, user_url):
 	'''
 	cur.execute(sql, parsed)
 
-def write_link(cur, post_id, link_count, link_text, link_url):
+def write_link(cur, thread_id, post_count, post_id, link_count, link_text, link_url):
 	""" write link information to links table
+	:param thread_id: id of thread, linked to threads table
+	:param post_count: count of post in thread
 	:param post_id: id of post with link
 	:param link_count: link number within post
 	:param link_text: text of link
 	:param link_url: href of link
 	:return: nothing
 	"""
-	parsed = (post_id, link_count, link_text, link_url)
+	parsed = (thread_id, post_count, post_id, link_count, link_text, link_url)
 	sql = '''
-		INSERT INTO links(post_id, link_count, link_text, link_url)
-		VALUES(?,?,?,?)
+		INSERT INTO links(thread_id, post_count, post_id, link_count, link_text, link_url)
+		VALUES(?,?,?,?,?,?)
 	'''
 	cur.execute(sql, parsed)
 
@@ -321,7 +337,7 @@ def get_post_id(post):
 	post_id = re.sub("para", "", post['id'])
 	return post_id
 
-def get_citations_old(cur, post, post_id):
+def get_citations_old(cur, post, thread_id, post_count, post_id):
 	""" finds the citations in a post using the old interface
 	:param post: post content div
 	:param post_id: post id
@@ -329,13 +345,14 @@ def get_citations_old(cur, post, post_id):
 	:note: writes citations to quotes table
 	"""
 	citations = post.find_all("span", {"itemprop": "citation"})
-	for cite in citations:
+	for i, cite in enumerate(citations):
 		cite_url = cite.find("span", {"itemprop": "url"}).get_text()
 		cite_id = id_from_url(cite_url)
-		write_citation(cur, post_id, cite_id, "", "")
+		cited_user = cite.find("span", {"itemprop": "author"}).get_text()
+		write_citation(cur, thread_id, post_count, post_id, cite_id, cited_user, "", i + 1)
 	return len(citations)
 
-def process_citation_new(cur, cite, post_id):
+def process_citation_new(cur, cite, thread_id, post_count, post_id, citation_n):
 	""" finds the citations in a post using the new interface
 	:param cite: citation content json
 	:param post_id: post id
@@ -345,9 +362,9 @@ def process_citation_new(cur, cite, post_id):
 	if cite["quotedPostAuthor"]["anonymized"]:
 		cited_user = "Anonymous"
 	else:
-		cited_user = cite["quotedPostAuthor"]["userSlug"]
-	content = clean_text_new(cur, cite["quotedPostContent"], post_id, write=False)
-	write_citation(cur, post_id, "", cited_user, content)
+		cited_user = cite["quotedPostAuthor"]["pseudo"]
+	content = clean_text_new(cur, cite["quotedPostContent"], thread_id, post_count, post_id, write=False)
+	write_citation(cur, thread_id, post_count, post_id, "", cited_user, content, citation_n)
 
 def id_from_url(text):
 	""" finds the id of the post from the url
@@ -382,7 +399,7 @@ def replace_breaks(soup):
 		br.replace_with('\n')
 	return soup
 
-def replace_hrefs(cur, soup, post_id, write=True):
+def replace_hrefs(cur, soup, thread_id, post_count, post_id, write=True):
 	""" finds any links in the body with shortened urls
 		and replaces them with the full url
 	:param soup: post body
@@ -395,10 +412,10 @@ def replace_hrefs(cur, soup, post_id, write=True):
 		link_count = i + 1
 		href.string = "::link_{}::".format(link_count)
 		if write:
-			write_link(cur, post_id, link_count, link_text, link_url)
+			write_link(cur, thread_id, post_count, post_id, link_count, link_text, link_url)
 	return soup
 
-def clean_text_new(cur, post_content, post_id, write=True):
+def clean_text_new(cur, post_content, thread_id, post_count, post_id, write=True):
 	""" cleans the text from the new interface
 	:param text: text to clean
 	returns: clean text
@@ -406,18 +423,18 @@ def clean_text_new(cur, post_content, post_id, write=True):
 	content = BeautifulSoup(post_content, "html5lib")
 	content = replace_breaks(content)
 	content = replace_emojis(content)
-	content = replace_hrefs(cur, content, post_id, write)
+	content = replace_hrefs(cur, content, thread_id, post_count, post_id, write)
 	content = content.get_text()
 	return strip_text(content)
 
-def get_text_no_cite(cur, post, post_id):
+def get_text_no_cite(cur, post, thread_id, post_count, post_id):
 	""" finds the text from posts with no citations
 	:param post: post soup
 	:return: cleaned body text
 	"""
 	div = post.find("div")
 	div = replace_emojis(div)
-	div = replace_hrefs(cur, div, post_id)
+	div = replace_hrefs(cur, div, thread_id, post_count, post_id)
 	text = ""
 	for child in div.children:
 		if isinstance(child, NavigableString):
@@ -427,7 +444,7 @@ def get_text_no_cite(cur, post, post_id):
 	text = emoji.demojize(text, delimiters=(" ::", ":: "))
 	return strip_text(text)
 
-def get_text_cite(cur, post, post_id):
+def get_text_cite(cur, post, thread_id, post_count, post_id):
 	""" finds the text from posts with citations
 	:param post: post soup
 	:return: cleaned body text
@@ -437,7 +454,7 @@ def get_text_cite(cur, post, post_id):
 	for child in child_divs:
 		child.replace_with('\n')
 	div = replace_emojis(div)
-	div = replace_hrefs(cur, div, post_id)
+	div = replace_hrefs(cur, div, thread_id, post_count, post_id)
 	text = div.get_text()
 	text = emoji.demojize(text, delimiters=(" ::", ":: "))
 	return strip_text(text)
@@ -482,10 +499,17 @@ def scrape_posts(conn, row):
 			doctype_soup = doctype_html(soup)
 			if doctype_soup:
 				# page from new version of forum
-				error404 = soup.find("div", {"class","error-404"})
+				error404 = soup.find("div", {"class":"error-404"})
+				faq = soup.find("meta", {"content":"Netmums FAQs"})
 				if error404:
 					break
+				if faq:
+					break
 				else:
+					if page == 1:
+						canonical_link = soup.find("link", {"rel":"canonical"})["href"]
+						if canonical_link != next_url: # redirected page
+							url = canonical_link
 					next_url = re.sub(r'.html', '-{}.html'.format(page + 1), url)
 					script = soup.find("script", {"id":"__NEXT_DATA__"})
 					try:
@@ -496,29 +520,28 @@ def scrape_posts(conn, row):
 						print(soup)
 						posts = []
 						write_list("errors.csv", [thread_id,next_url])
-					# posts = get_posts(soup)
 					for post in posts:
 						post_count += 1
 						user_url = get_user_new(cur, post)
 						date_created = get_date_new(post)
 						post_id = post["id"]
-						text = clean_text_new(cur, post["content"], post_id)
+						text = clean_text_new(cur, post["content"], thread_id, post_count, post_id)
 						citations = post["quotedPosts"]
-						for cite in citations:
-							process_citation_new(cur, cite, post_id)
-						write_post(cur, thread_id, post_id, post_count, user_url, date_created, text)
+						for i, cite in enumerate(citations):
+							process_citation_new(cur, cite, thread_id, post_count, post_id, i + 1)
+						write_post(cur, thread_id, post_count, post_id, user_url, date_created, text, 1)
 						conn.commit()
 			elif doctype_soup is None:
 				# no next page for new version of forum
 				next_url = False
 			else:
 				# page from old version of forum
-				error404 = soup.find("div", {"class","error-404"})
+				error404 = soup.find("div", {"class":"error-404"})
 				if error404:
 					break
 				else:
 					next_url = get_next_url(soup) # returns False if no next url
-					cases = soup.find_all("div", {"class","md-topic_post"})
+					cases = soup.find_all("div", {"class":"md-topic_post"})
 					for case in cases:
 						page_post_count += 1
 						if page > 1 and page_post_count == 1: # skip dup posts on top of page
@@ -529,10 +552,10 @@ def scrape_posts(conn, row):
 							date_created = get_date_old(case)
 							post = case.find("div", {"class": "post_content"})
 							post_id = get_post_id(post)
-							len_citations = get_citations_old(cur, post, post_id)
+							len_citations = get_citations_old(cur, post, thread_id, post_count, post_id)
 							if len_citations == 0:
-								text = get_text_no_cite(cur, post, post_id)
+								text = get_text_no_cite(cur, post, thread_id, post_count, post_id)
 							else:
-								text = get_text_cite(cur, post, post_id)
-							write_post(cur, thread_id, post_id, post_count, user_url, date_created, text)
+								text = get_text_cite(cur, post, thread_id, post_count, post_id)
+							write_post(cur, thread_id, post_count, post_id, user_url, date_created, text, 0)
 							conn.commit()
