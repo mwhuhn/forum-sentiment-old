@@ -1,0 +1,2 @@
+/home/mwh/miniconda3/envs/forum/lib/python3.8/site-packages/bs4/__init__.py:332: MarkupResemblesLocatorWarning: "." looks like a filename, not markup. You should probably open this file and pass the filehandle into Beautiful Soup.
+  warnings.warn(

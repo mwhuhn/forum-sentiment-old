@@ -1,0 +1,8 @@
+/home/mwh/miniconda3/envs/forum/lib/python3.8/site-packages/bs4/__init__.py:332: MarkupResemblesLocatorWarning: "////////////////" looks like a filename, not markup. You should probably open this file and pass the filehandle into Beautiful Soup.
+  warnings.warn(
+/home/mwh/miniconda3/envs/forum/lib/python3.8/site-packages/bs4/__init__.py:417: MarkupResemblesLocatorWarning: "http://i178.photobucket.com/albums/w269/cydneysmummy/DSCF0277.jpg[/img]" looks like a URL. Beautiful Soup is not an HTTP client. You should probably use an HTTP client like requests to get the document behind the URL, and feed that document to Beautiful Soup.
+  warnings.warn(
+/home/mwh/miniconda3/envs/forum/lib/python3.8/site-packages/bs4/__init__.py:332: MarkupResemblesLocatorWarning: "." looks like a filename, not markup. You should probably open this file and pass the filehandle into Beautiful Soup.
+  warnings.warn(
+/home/mwh/miniconda3/envs/forum/lib/python3.8/site-packages/bs4/__init__.py:332: MarkupResemblesLocatorWarning: "///" looks like a filename, not markup. You should probably open this file and pass the filehandle into Beautiful Soup.
+  warnings.warn(
