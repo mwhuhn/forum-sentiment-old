@@ -7,6 +7,8 @@
 from nltk.corpus import wordnet as wn
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
+from nltk import FreqDist
+
 # gensim
 from gensim import corpora, models
 # data
@@ -36,6 +38,8 @@ path_lemma_pkl = str(path_clean_data / "lemmatized_text_{0}_{1}_{2}.pkl")
 path_corpus_pkl = str(path_clean_data / "corpus_{0}_{1}_{2}.pkl")
 path_dictionary_gensim = str(path_clean_data / "dictionary_{0}_{1}_{2}.gensim")
 path_clean_text = str(path_clean_data / "clean_text_{0}_{1}.csv")
+path_text_list = str(path_clean_data / "clean_text_list_{0}_{1}.csv")
+path_freq_dist = str(path_clean_data / "freq_dist_{0}_{1}.pkl")
 
 ## Regex
 
@@ -68,6 +72,30 @@ def process_data(subforum="all", group="all", id_type="family_id", per=1, n_chun
 		text = make_bigrams(df['bigrams'], n_chunks)
 	print("saving data")
 	save_data(text, subforum, group, id_type, n_chunks)
+
+def save_text_list(subforum="all", group="all", force=False):
+	if not Path(path_text_list.format(subforum, group)).exists() or force:
+		df = pd.read_csv(path_clean_text.format(subforum, group))
+		text = text_to_list(df['text_clean'], 1)
+		with open(path_text_list.format(subforum, group), 'wb') as f:
+			pickle.dump(text, f)
+
+def read_text_list(subforum="all", group="all"):
+	with open(path_text_list.format(subforum, group), 'rb') as f:
+		return pickle.load(f)
+
+def get_freq_dist(subforum="all", group="all", force=False):
+	if not Path(path_freq_dist.format(subforum, group)).exists() or force:
+		save_text_list(subforum, group)
+		text = read_text_list(subforum, group)
+		flat_text = [word for doc in text for word in doc]
+		freq_dist = FreqDist(flat_text)
+		with open(path_freq_dist.format(subforum, group), 'wb') as f:
+			pickle.dump(freq_dist, f)
+	else:
+		with open(path_freq_dist.format(subforum, group), 'rb') as f:
+			freq_dist = pickle.load(f)
+	return freq_dist
 
 def load_data(subforum="all", group="all", per=1):
 	conn = create_connection(path_db)
